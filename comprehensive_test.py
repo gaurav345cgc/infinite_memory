@@ -33,7 +33,7 @@ def test_complete_ai_memory():
         "threadId": thread_id,
         "query": "What are the best temperature sensors for my smart home project?",
         "filters": {"project": "smart_home"}
-    }
+    } 
     
     response = requests.post("http://localhost:3001/rag-generate", json=query)
     if response.status_code == 200:

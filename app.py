@@ -91,6 +91,7 @@ async def monitor_api_calls(request: Request, call_next):
 
 # OpenAI client
 openai_api_key = os.getenv("OPENAI_API_KEY")
+logger.info(f"OPENAI_API_KEY: {openai_api_key}")
 if not openai_api_key:
     logger.error("OPENAI_API_KEY environment variable not set")
     raise RuntimeError("OPENAI_API_KEY environment variable not set")
@@ -175,18 +176,26 @@ async def get_rag_context(req: QueryRequest, similarity_threshold: float = 0):
         if req.filters:
             where_filter.update(req.filters)
 
+        # Add filter to exclude AI responses and query-like content
+        where_filter["type"] = "user_message"
+
         results = query_similar_any_thread(req.userId, query_embedding, metadata_filter=where_filter, top_k=10)
         documents = results.get("documents", [[]])[0]
         distances = results.get("distances", [[]])[0]
         
-        # Apply threshold filtering
+        # Apply threshold filtering and query similarity filtering
         relevant_documents = []
         relevant_scores = []
         relevant_count = 0
+        query_lower = query_text.lower().strip()
         
         for doc, dist in zip(documents, distances):
             similarity_score = 1 - dist  # Convert distance to similarity
-            if similarity_score >= similarity_threshold:
+            doc_lower = doc.lower().strip()
+            
+            # Only skip if document is exactly the same as the query
+            if (similarity_score >= similarity_threshold and 
+                doc_lower != query_lower):
                 relevant_documents.append(doc)
                 relevant_scores.append(round(similarity_score, 4))
                 relevant_count += 1
@@ -230,9 +239,28 @@ async def rag_generate(req: QueryRequest = Body(...)):
         if req.filters:
             where_filter.update(req.filters)
 
-        results = query_similar_any_thread(req.userId, query_embedding, metadata_filter=where_filter, top_k=5)
+        # Add filter to exclude AI responses and query-like content
+        where_filter["type"] = "user_message"
+
+        results = query_similar_any_thread(req.userId, query_embedding, metadata_filter=where_filter, top_k=10)
         documents = results.get("documents", [[]])[0]
-        context = "\n---\n".join(documents) if documents else ""
+        distances = results.get("distances", [[]])[0]
+
+        # Debug: print raw documents and distances
+        logger.error(f"[DEBUG] Raw documents from similarity search: {documents}")
+        logger.error(f"[DEBUG] Raw distances from similarity search: {distances}")
+        
+        # Apply the same filtering logic as rag-context
+        relevant_documents = []
+        query_lower = query_text.lower().strip()
+        
+        for doc, dist in zip(documents, distances):
+            doc_lower = doc.lower().strip()
+            # Only skip if document is exactly the same as the query
+            if doc_lower != query_lower:
+                relevant_documents.append(doc)
+        
+        context = "\n---\n".join(relevant_documents) if relevant_documents else ""
 
         prompt = (
             f"Use the following context to answer the question.\n\n"
