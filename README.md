@@ -21,8 +21,8 @@ A FastAPI-based microservice for AI-powered document embedding, retrieval, and R
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
-   cd infinite
+   git clone (https://github.com/gaurav345cgc/infinite_memory)
+   cd infinite_memory
    ```
 
 2. **Create virtual environment**
